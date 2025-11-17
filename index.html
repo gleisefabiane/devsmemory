@@ -204,39 +204,54 @@
     }
 
     function onCardClick(card, inner, node){
-      if(lock || card.matched) return;
-      if(!timerInterval) startTimer();
+  if(lock || card.matched) return;
+  if(!timerInterval) startTimer();
 
-      // flip visual
-      inner.classList.toggle('flipped');
+  // impede que a primeira carta seja desvirada
+  if (!first) {
+    inner.classList.add('flipped');
+    first = {card, inner, node};
+    return;
+  }
 
-      if(!first){ first = {card, inner, node}; return }
-      if(first.card.uid === card.uid){ // same card clicked -> ignore
-        return;
+  // impedir desvirar a primeira carta ao clicar nela
+  if (first.card.uid === card.uid) return;
+
+  // vira segunda carta
+  inner.classList.add('flipped');
+  second = {card, inner, node};
+  lock = true;
+  moves++;
+  movesEl.textContent = moves;
+
+  // match?
+  if (first.card.pid === second.card.pid && first.card.side !== second.card.side){
+    first.card.matched = true;
+    second.card.matched = true;
+    matches++;
+
+    first.node.classList.add('matched');
+    second.node.classList.add('matched');
+
+    setTimeout(()=>{
+      first=null; second=null; lock=false;
+      if(matches===32){
+        stopTimer();
+        setTimeout(()=>alert(`Parabéns! Você completou o jogo em ${moves} jogadas e ${timeEl.textContent} de tempo.`),120);
       }
-      second = {card, inner, node};
-      lock = true; moves++; movesEl.textContent = moves;
+      render();
+    },400);
 
-      // check match: they match if pid equal and sides are different (q vs a)
-      if(first.card.pid === second.card.pid && first.card.side !== second.card.side){
-        // matched
-        first.card.matched = true; second.card.matched = true; matches++;
-        first.node.classList.add('matched'); second.node.classList.add('matched');
-        // keep flipped and reduce pointer
-        setTimeout(()=>{
-          first=null; second=null; lock=false;
-          if(matches===32){ stopTimer(); setTimeout(()=>alert(`Parabéns! Você completou o jogo em ${moves} jogadas e ${timeEl.textContent} de tempo.`),120);
-          }
-          render();
-        },400);
-      } else {
-        // not match -> flip back
-        setTimeout(()=>{
-          first.inner.classList.remove('flipped'); second.inner.classList.remove('flipped');
-          first=null; second=null; lock=false; render();
-        },800);
-      }
-    }
+  } else {
+    // não é par → aguarde 800ms e vire de volta
+    setTimeout(()=>{
+      first.inner.classList.remove('flipped');
+      second.inner.classList.remove('flipped');
+      first=null; second=null; lock=false;
+      render();
+    },800);
+  }
+}
 
     function setupGame(){
       deck = buildDeck(); shuffle(deck);
