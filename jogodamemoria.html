@@ -1,0 +1,256 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <title>DEVs Game</title>
+  <style>
+    :root{
+      --bg:#0f172a; --card-bg:#ffffff; --accent1:#06b6d4; --accent2:#f97316; --accent3:#8b5cf6; --accent4:#10b981;
+      --text:#102a43; --muted:#64748b;
+    }
+    *{box-sizing:border-box}
+    body{font-family:Inter, system-ui, -apple-system, 'Segoe UI', Roboto, 'Helvetica Neue', Arial; margin:0; background:linear-gradient(180deg,#071129 0%, #0b1220 60%); color:var(--card-bg); min-height:100vh; display:flex; align-items:center; justify-content:center; padding:28px}
+    .app{width:100%; max-width:1200px;}
+    header{display:flex; align-items:center; justify-content:space-between; gap:12px; margin-bottom:18px}
+    h1{font-size:20px; margin:0; color:var(--card-bg)}
+    .controls{display:flex; gap:8px; align-items:center}
+    .btn{background:linear-gradient(90deg,var(--accent2),var(--accent3)); padding:8px 12px; border-radius:10px; color:white; border:none; cursor:pointer; font-weight:600; box-shadow:0 6px 18px rgba(10,10,20,0.5)}
+    .info{background:rgba(255,255,255,0.06); padding:8px 12px; border-radius:10px; color:var(--card-bg); font-size:14px}
+    .board{display:grid; grid-template-columns: repeat(8, 1fr); gap:12px;}
+
+    /* card */
+    .card{perspective:800px;}
+    .cardInner{position:relative; width:100%; padding-top:150%; /* aspect ratio */}
+    .cardFace{position:absolute; inset:0; border-radius:12px; backface-visibility:hidden; display:flex; flex-direction:column; align-items:center; justify-content:center; text-align:center; padding:12px; box-shadow:0 6px 20px rgba(2,6,23,0.6)}
+    .cardFront{background:linear-gradient(180deg,rgba(255,255,255,0.06),rgba(255,255,255,0.02)); color:var(--card-bg); border:2px solid rgba(255,255,255,0.04)}
+    .cardBack{transform:rotateY(180deg); background:var(--card-bg); color:var(--text); border:2px solid rgba(2,6,23,0.25)}
+    .cardInner.flipped .cardFront{transform:rotateY(180deg)}
+    .cardInner.flipped .cardBack{transform:rotateY(0deg)}
+    .cardInner .cardFront, .cardInner .cardBack{transition:transform .45s cubic-bezier(.2,.9,.2,1)}
+    .svgIcon{width:38px; height:38px; margin-bottom:8px;}
+    .qText{font-weight:700; font-size:13px; line-height:1.2}
+    .aText{font-size:12px; color:var(--muted)}
+    .matched{opacity:0.28; transform:scale(.98); filter:grayscale(.2)}
+
+    /* footer */
+    footer{display:flex; justify-content:space-between; margin-top:12px; color:rgba(255,255,255,.7); font-size:13px}
+
+    @media (max-width:600px){ .cardInner{padding-top:120%} }
+  </style>
+</head>
+<body>
+  <div class="app">
+    <header>
+      <h1>Desafio - Jogo da Memória</h1>
+      <div style="display:flex;gap:8px;align-items:center">
+        <div class="info">Jogadas: <span id="moves">0</span></div>
+        <div class="info">Tempo: <span id="time">00:00</span></div>
+        <button id="shuffleBtn" class="btn">Reembaralhar</button>
+      </div>
+    </header>
+
+    <main>
+      <section class="board" id="board" aria-live="polite"></section>
+    </main>
+
+    <footer>
+      <div>Clique em uma carta para virar. Combine **charada** com **resposta**.</div>
+      <div id="status">Peças restantes: <span id="remaining">32</span></div>
+    </footer>
+  </div>
+
+  <template id="cardTpl">
+    <div class="card" role="button" tabindex="0">
+      <div class="cardInner">
+        <div class="cardFace cardFront">
+          <svg class="svgIcon" viewBox="0 0 24 24" fill="none" aria-hidden></svg>
+          <div class="qText">Frente</div>
+        </div>
+        <div class="cardFace cardBack">
+          <div class="qText">Verso</div>
+          <div class="aText" style="margin-top:8px">(tipo)</div>
+        </div>
+      </div>
+    </div>
+  </template>
+
+  <script>
+    // Dados: 32 itens (charada + resposta) por categoria
+    const items = [
+      {id:1, q:"Se me falta uma condição, posso fazer tudo errado. Se me falta um laço, nunca termino. O que sou?", a:"Algoritmo", cat:'logic'},
+      {id:2, q:"Começo verdadeiro, termino falso, e às vezes faço caminhos diferentes… quem sou?", a:"Estrutura condicional", cat:'logic'},
+      {id:3, q:"Repito, repito e só paro quando você mandar. O que sou?", a:"Loop", cat:'logic'},
+      {id:4, q:"Só existo quando há entrada e saída, mas não sou uma porta. O que sou?", a:"Função", cat:'logic'},
+      {id:5, q:"Recebo dados, sigo passos e devolvo um resultado, mas não sou funcionário. Quem sou eu?", a:"Processamento", cat:'logic'},
+      {id:6, q:"Posso ser global ou local, mas se você esquecer de mim, dá erro.", a:"Variável", cat:'logic'},
+
+      {id:7, q:"Enxergo tudo na rede, mas ninguém me vê. Faço dispositivos conversarem. Quem sou?", a:"Roteador", cat:'iot'},
+      {id:8, q:"Sou pequeno, conecto tudo e ainda reporto dados para a nuvem.", a:"Dispositivo IoT", cat:'iot'},
+      {id:9, q:"Em IoT, tenho sensores, atuadores e conectividade. Sem mim, o mundo não é inteligente.", a:"Sistema embarcado", cat:'iot'},
+      {id:10, q:"Não sou drone, mas envio pacotes pelo ar.", a:"Wi-Fi", cat:'iot'},
+      {id:11, q:"Ajudo a automatizar casas, indústrias e cidades, mas não apareço no noticiário.", a:"Arquitetura IoT", cat:'iot'},
+      {id:12, q:"Se eu caio, todos os dispositivos ficam mudos.", a:"Conexão com a internet", cat:'iot'},
+
+      {id:13, q:"Se não sou bem feito, o sistema nasce incompleto.", a:"Levantamento de requisitos", cat:'req'},
+      {id:14, q:"Não sou regra de trânsito, mas organizo o que pode e não pode no sistema.", a:"Regra de negócio", cat:'req'},
+      {id:15, q:"Digo como o sistema deve se comportar, mas não sou ator.", a:"Requisito funcional", cat:'req'},
+      {id:16, q:"Não digo o que fazer, mas digo como deve ser feito.", a:"Requisito não funcional", cat:'req'},
+      {id:17, q:"Cliente me fala o que quer, mas nem sempre sabe explicar.", a:"Entrevista de requisitos", cat:'req'},
+      {id:18, q:"Registro histórias para guiar desenvolvedores, mas não sou livro.", a:"História de usuário", cat:'req'},
+
+      {id:19, q:"Sou o esqueleto da web, mas não tenho ossos.", a:"HTML", cat:'web'},
+      {id:20, q:"Conto ao navegador o que é título, texto e imagem.", a:"Tag HTML", cat:'web'},
+      {id:21, q:"Estou no topo da página e digo ao navegador quem eu sou.", a:"tag <head>", cat:'web'},
+      {id:22, q:"Conto histórias em parágrafos, mas não sou escritor.", a:"tag <p", cat:'web'},
+      {id:23, q:"Coloco ordem na bagunça, numerada ou não.", a:"Listas <ol> e <ul>", cat:'web'},
+
+      {id:24, q:"Sem mim, tudo é preto, branco e feio.", a:"CSS", cat:'css'},
+      {id:25, q:"Posso ser interno, externo ou em linha, mas sempre deixo o site bonito.", a:"Estilo CSS", cat:'css'},
+      {id:26, q:"Faço os elementos se moverem sem JavaScript.", a:"Animações CSS", cat:'css'},
+      {id:27, q:"Ajusto largura, altura e posição, mas não sou arquiteto.", a:"Layout CSS", cat:'css'},
+      {id:28, q:"Mudo cor quando passo o mouse, mas não sou camaleão.", a:":hover", cat:'css'},
+
+      {id:29, q:"Dou vida ao site, mas não sou mágico.", a:"JavaScript", cat:'js'},
+      {id:30, q:"Detecto cliques, teclas e movimentos.", a:"Eventos JavaScript", cat:'js'},
+      {id:31, q:"Entro no HTML para manipulá-lo, linha por linha, mas não sou editor.", a:"DOM", cat:'js'},
+      {id:32, q:"Faço o navegador esperar um pouco, mas não sou relógio.", a:"setTimeout", cat:'js'}
+    ];
+
+    // Construir deck: para cada item criamos 2 cartas: uma com o texto Q (charada) e outra com A (resposta)
+    function buildDeck(){
+      const deck = [];
+      items.forEach(it=>{
+        deck.push({uid:it.id+'q', pid:it.id, side:'q', text:it.q, cat:it.cat});
+        deck.push({uid:it.id+'a', pid:it.id, side:'a', text:it.a, cat:it.cat});
+      });
+      return deck;
+    }
+
+    // Fisher-Yates shuffle
+    function shuffle(array){
+      for(let i=array.length-1;i>0;i--){
+        const j=Math.floor(Math.random()*(i+1)); [array[i],array[j]]=[array[j],array[i]];
+      }
+      return array;
+    }
+
+    // Icons (simple SVGs) by category
+    const svgs = {
+      logic:`<svg viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg"><rect x="3" y="3" width="18" height="18" rx="3" stroke="#ffffff" stroke-width="1.5"/><path d="M8 12h8M12 8v8" stroke="#ffffff" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/></svg>`,
+      iot:`<svg viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg"><circle cx="12" cy="10" r="3" stroke="#ffffff" stroke-width="1.6"/><path d="M12 3v3M12 18v3M5 8l2 2M17 8l2 2M5 16l2-2M17 16l2-2" stroke="#ffffff" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round"/></svg>`,
+      req:`<svg viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg"><rect x="4" y="4" width="16" height="16" rx="2" stroke="#ffffff" stroke-width="1.4"/><path d="M8 8h8M8 12h8M8 16h5" stroke="#ffffff" stroke-width="1.4" stroke-linecap="round"/></svg>`,
+      web:`<svg viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg"><path d="M3 6h18M3 18h18M3 12h18" stroke="#ffffff" stroke-width="1.6" stroke-linecap="round"/></svg>`,
+      css:`<svg viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg"><path d="M6 3h12l-1 14L12 21l-5-4L6 3z" stroke="#ffffff" stroke-width="1.4" stroke-linejoin="round" stroke-linecap="round"/></svg>`,
+      js:`<svg viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg"><path d="M4 4h16v16H4z" stroke="#ffffff" stroke-width="1.4"/><path d="M9 8v8l5-4-5-4z" fill="#ffffff" opacity="0.18"/></svg>`
+    };
+
+    // Game state
+    let deck = [], first=null, second=null, lock=false, moves=0, matches=0, timerInterval=null, seconds=0;
+
+    const board = document.getElementById('board');
+    const tpl = document.getElementById('cardTpl');
+    const movesEl = document.getElementById('moves');
+    const timeEl = document.getElementById('time');
+    const remainingEl = document.getElementById('remaining');
+    const shuffleBtn = document.getElementById('shuffleBtn');
+
+    function startTimer(){
+      clearInterval(timerInterval); seconds=0; timeEl.textContent='00:00';
+      timerInterval = setInterval(()=>{ seconds++; const m = String(Math.floor(seconds/60)).padStart(2,'0'); const s = String(seconds%60).padStart(2,'0'); timeEl.textContent = `${m}:${s}` },1000);
+    }
+
+    function stopTimer(){ clearInterval(timerInterval); timerInterval=null }
+
+    function render(){
+      board.innerHTML='';
+      deck.forEach(card=>{
+        const node = tpl.content.firstElementChild.cloneNode(true);
+        const inner = node.querySelector('.cardInner');
+        const front = node.querySelector('.cardFront');
+        const back = node.querySelector('.cardBack');
+
+        // icon
+        front.querySelector('svg').outerHTML = svgs[card.cat] || svgs.web;
+
+        // front shows small label depending on side
+        front.querySelector('.qText').textContent = card.side === 'q' ? 'Charada' : 'Resposta';
+        back.querySelector('.qText').textContent = card.text;
+        back.querySelector('.aText').textContent = card.side === 'q' ? '(charada)' : '(resposta)';
+
+        // colorful border depending on category
+        const color = {
+          logic:'linear-gradient(90deg,var(--accent1),var(--accent4))',
+          iot:'linear-gradient(90deg,var(--accent3),var(--accent2))',
+          req:'linear-gradient(90deg,#ffb86b,#f97316)',
+          web:'linear-gradient(90deg,#38bdf8,#60a5fa)',
+          css:'linear-gradient(90deg,#a78bfa,#fb7185)',
+          js:'linear-gradient(90deg,#facc15,#f97316)'
+        }[card.cat]||'linear-gradient(90deg,#9ca3ff,#f472b6)';
+
+        front.style.background = color;
+        front.style.minHeight='0';
+
+        // click handlers
+        node.addEventListener('click',()=>onCardClick(card,inner,node));
+        node.addEventListener('keydown',(e)=>{ if(e.key==='Enter' || e.key===' ') onCardClick(card,inner,node) });
+
+        // mark matched
+        if(card.matched) node.classList.add('matched');
+
+        board.appendChild(node);
+      });
+      remainingEl.textContent = 32 - matches;
+    }
+
+    function onCardClick(card, inner, node){
+      if(lock || card.matched) return;
+      if(!timerInterval) startTimer();
+
+      // flip visual
+      inner.classList.toggle('flipped');
+
+      if(!first){ first = {card, inner, node}; return }
+      if(first.card.uid === card.uid){ // same card clicked -> ignore
+        return;
+      }
+      second = {card, inner, node};
+      lock = true; moves++; movesEl.textContent = moves;
+
+      // check match: they match if pid equal and sides are different (q vs a)
+      if(first.card.pid === second.card.pid && first.card.side !== second.card.side){
+        // matched
+        first.card.matched = true; second.card.matched = true; matches++;
+        first.node.classList.add('matched'); second.node.classList.add('matched');
+        // keep flipped and reduce pointer
+        setTimeout(()=>{
+          first=null; second=null; lock=false;
+          if(matches===32){ stopTimer(); setTimeout(()=>alert(`Parabéns! Você completou o jogo em ${moves} jogadas e ${timeEl.textContent} de tempo.`),120);
+          }
+          render();
+        },400);
+      } else {
+        // not match -> flip back
+        setTimeout(()=>{
+          first.inner.classList.remove('flipped'); second.inner.classList.remove('flipped');
+          first=null; second=null; lock=false; render();
+        },800);
+      }
+    }
+
+    function setupGame(){
+      deck = buildDeck(); shuffle(deck);
+      // mark none matched
+      deck.forEach(c=>{ c.matched=false });
+      first=null; second=null; lock=false; moves=0; matches=0; movesEl.textContent='0'; remainingEl.textContent='32'; stopTimer();
+      // render
+      render();
+    }
+
+    shuffleBtn.addEventListener('click',setupGame);
+
+    // initialize
+    setupGame();
+  </script>
+</body>
+</html>
