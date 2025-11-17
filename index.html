@@ -240,7 +240,7 @@
         setTimeout(()=>alert(`Parabéns! Você completou o jogo em ${moves} jogadas e ${timeEl.textContent} de tempo.`),120);
       }
       render();
-    },400);
+    },2000);
 
   } else {
     // não é par → aguarde 800ms e vire de volta
@@ -249,7 +249,7 @@
       second.inner.classList.remove('flipped');
       first=null; second=null; lock=false;
       render();
-    },800);
+    },2000);
   }
 }
 
